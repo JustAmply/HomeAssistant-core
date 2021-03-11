@@ -92,7 +92,7 @@ class IcloudAccount:
         self._with_family = with_family
         self._fetch_interval = max_interval
         self._max_interval = max_interval
-        self._gps_accuracy_threshold = gps_accuracy_threshold
+        self.gps_accuracy_threshold = gps_accuracy_threshold
 
         self._icloud_dir = icloud_dir
 
@@ -354,11 +354,6 @@ class IcloudAccount:
     def fetch_interval(self) -> int:
         """Return the account fetch interval."""
         return self._fetch_interval
-
-    @property
-    def gps_accuracy_threshold(self) -> int:
-        """Return configured GPS Accuracy Threshold."""
-        return self._gps_accuracy_threshold
 
     @property
     def devices(self) -> dict[str, any]:
