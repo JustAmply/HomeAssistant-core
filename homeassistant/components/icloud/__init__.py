@@ -43,6 +43,7 @@ ATTR_ACCOUNT = "account"
 ATTR_LOST_DEVICE_MESSAGE = "message"
 ATTR_LOST_DEVICE_NUMBER = "number"
 ATTR_LOST_DEVICE_SOUND = "sound"
+TEST = "Hallo Test"
 
 SERVICE_SCHEMA = vol.Schema({vol.Optional(ATTR_ACCOUNT): cv.string})
 
