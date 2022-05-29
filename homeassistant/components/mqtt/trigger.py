@@ -5,19 +5,20 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.components.automation import (
+    AutomationActionType,
+    AutomationTriggerInfo,
+)
 from homeassistant.const import CONF_PAYLOAD, CONF_PLATFORM, CONF_VALUE_TEMPLATE
-from homeassistant.core import HassJob, callback
+from homeassistant.core import CALLBACK_TYPE, HassJob, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, template
+from homeassistant.helpers.typing import ConfigType
 
 from .. import mqtt
+from .const import CONF_ENCODING, CONF_QOS, CONF_TOPIC, DEFAULT_ENCODING, DEFAULT_QOS
 
 # mypy: allow-untyped-defs
 
-CONF_ENCODING = "encoding"
-CONF_QOS = "qos"
-CONF_TOPIC = "topic"
-DEFAULT_ENCODING = "utf-8"
-DEFAULT_QOS = 0
 
 TRIGGER_SCHEMA = cv.TRIGGER_BASE_SCHEMA.extend(
     {
@@ -35,9 +36,14 @@ TRIGGER_SCHEMA = cv.TRIGGER_BASE_SCHEMA.extend(
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_attach_trigger(hass, config, action, automation_info):
+async def async_attach_trigger(
+    hass: HomeAssistant,
+    config: ConfigType,
+    action: AutomationActionType,
+    automation_info: AutomationTriggerInfo,
+) -> CALLBACK_TYPE:
     """Listen for state changes based on configuration."""
-    trigger_data = automation_info.get("trigger_data", {}) if automation_info else {}
+    trigger_data = automation_info["trigger_data"]
     topic = config[CONF_TOPIC]
     wanted_payload = config.get(CONF_PAYLOAD)
     value_template = config.get(CONF_VALUE_TEMPLATE)
