@@ -7,21 +7,23 @@ from aiohomekit.model.characteristics import CharacteristicsTypes
 from aiohomekit.model.services import Service, ServicesTypes
 
 from homeassistant.components.humidifier import (
-    HumidifierDeviceClass,
-    HumidifierEntity,
-    HumidifierEntityFeature,
-)
-from homeassistant.components.humidifier.const import (
     DEFAULT_MAX_HUMIDITY,
     DEFAULT_MIN_HUMIDITY,
     MODE_AUTO,
     MODE_NORMAL,
+    HumidifierDeviceClass,
+    HumidifierEntity,
+    HumidifierEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType
 
-from . import KNOWN_DEVICES, HomeKitEntity
+from . import KNOWN_DEVICES
+from .connection import HKDevice
+from .entity import HomeKitEntity
 
 HK_MODE_TO_HA = {
     0: "off",
@@ -71,6 +73,11 @@ class HomeKitHumidifier(HomeKitEntity, HumidifierEntity):
         return self.service.value(
             CharacteristicsTypes.RELATIVE_HUMIDITY_HUMIDIFIER_THRESHOLD
         )
+
+    @property
+    def current_humidity(self) -> int | None:
+        """Return the current humidity."""
+        return self.service.value(CharacteristicsTypes.RELATIVE_HUMIDITY_CURRENT)
 
     @property
     def mode(self) -> str | None:
@@ -146,6 +153,11 @@ class HomeKitDehumidifier(HomeKitEntity, HumidifierEntity):
     _attr_device_class = HumidifierDeviceClass.DEHUMIDIFIER
     _attr_supported_features = HumidifierEntityFeature.MODES
 
+    def __init__(self, accessory: HKDevice, devinfo: ConfigType) -> None:
+        """Initialise the dehumidifier."""
+        super().__init__(accessory, devinfo)
+        self._attr_unique_id = f"{accessory.unique_id}_{self._iid}_{self.device_class}"
+
     def get_characteristic_types(self) -> list[str]:
         """Define the homekit characteristics the entity cares about."""
         return [
@@ -175,6 +187,11 @@ class HomeKitDehumidifier(HomeKitEntity, HumidifierEntity):
         return self.service.value(
             CharacteristicsTypes.RELATIVE_HUMIDITY_DEHUMIDIFIER_THRESHOLD
         )
+
+    @property
+    def current_humidity(self) -> int | None:
+        """Return the current humidity."""
+        return self.service.value(CharacteristicsTypes.RELATIVE_HUMIDITY_CURRENT)
 
     @property
     def mode(self) -> str | None:
@@ -244,8 +261,8 @@ class HomeKitDehumidifier(HomeKitEntity, HumidifierEntity):
         )
 
     @property
-    def unique_id(self) -> str:
-        """Return the ID of this device."""
+    def old_unique_id(self) -> str:
+        """Return the old ID of this device."""
         serial = self.accessory_info.value(CharacteristicsTypes.SERIAL_NUMBER)
         return f"homekit-{serial}-{self._iid}-{self.device_class}"
 
@@ -256,8 +273,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Homekit humidifer."""
-    hkid = config_entry.data["AccessoryPairingID"]
-    conn = hass.data[KNOWN_DEVICES][hkid]
+    hkid: str = config_entry.data["AccessoryPairingID"]
+    conn: HKDevice = hass.data[KNOWN_DEVICES][hkid]
 
     @callback
     def async_add_service(service: Service) -> bool:
@@ -266,7 +283,7 @@ async def async_setup_entry(
 
         info = {"aid": service.accessory.aid, "iid": service.iid}
 
-        entities: list[HumidifierEntity] = []
+        entities: list[HomeKitHumidifier | HomeKitDehumidifier] = []
 
         if service.has(CharacteristicsTypes.RELATIVE_HUMIDITY_HUMIDIFIER_THRESHOLD):
             entities.append(HomeKitHumidifier(conn, info))
@@ -274,7 +291,12 @@ async def async_setup_entry(
         if service.has(CharacteristicsTypes.RELATIVE_HUMIDITY_DEHUMIDIFIER_THRESHOLD):
             entities.append(HomeKitDehumidifier(conn, info))
 
-        async_add_entities(entities, True)
+        for entity in entities:
+            conn.async_migrate_unique_id(
+                entity.old_unique_id, entity.unique_id, Platform.HUMIDIFIER
+            )
+
+        async_add_entities(entities)
 
         return True
 

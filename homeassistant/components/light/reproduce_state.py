@@ -31,7 +31,6 @@ from . import (
     ATTR_RGBWW_COLOR,
     ATTR_TRANSITION,
     ATTR_WHITE,
-    ATTR_WHITE_VALUE,
     ATTR_XY_COLOR,
     DOMAIN,
     ColorMode,
@@ -46,7 +45,6 @@ ATTR_GROUP = [
     ATTR_BRIGHTNESS_PCT,
     ATTR_EFFECT,
     ATTR_FLASH,
-    ATTR_WHITE_VALUE,
     ATTR_TRANSITION,
 ]
 
@@ -91,8 +89,9 @@ DEPRECATED_GROUP = [
 ]
 
 DEPRECATION_WARNING = (
-    "The use of other attributes than device state attributes is deprecated and will be removed in a future release. "
-    "Invalid attributes are %s. Read the logs for further details: https://www.home-assistant.io/integrations/scene/"
+    "The use of other attributes than device state attributes is deprecated and will be"
+    " removed in a future release. Invalid attributes are %s. Read the logs for further"
+    " details: https://www.home-assistant.io/integrations/scene/"
 )
 
 
@@ -150,33 +149,29 @@ async def _async_reproduce_state(
         service = SERVICE_TURN_ON
         for attr in ATTR_GROUP:
             # All attributes that are not colors
-            if attr in state.attributes:
-                service_data[attr] = state.attributes[attr]
+            if (attr_state := state.attributes.get(attr)) is not None:
+                service_data[attr] = attr_state
 
         if (
             state.attributes.get(ATTR_COLOR_MODE, ColorMode.UNKNOWN)
             != ColorMode.UNKNOWN
         ):
-            # Remove deprecated white value if we got a valid color mode
-            service_data.pop(ATTR_WHITE_VALUE, None)
             color_mode = state.attributes[ATTR_COLOR_MODE]
-            if color_mode_attr := COLOR_MODE_TO_ATTRIBUTE.get(color_mode):
-                if color_mode_attr.state_attr not in state.attributes:
+            if cm_attr := COLOR_MODE_TO_ATTRIBUTE.get(color_mode):
+                if (cm_attr_state := state.attributes.get(cm_attr.state_attr)) is None:
                     _LOGGER.warning(
                         "Color mode %s specified but attribute %s missing for: %s",
                         color_mode,
-                        color_mode_attr.state_attr,
+                        cm_attr.state_attr,
                         state.entity_id,
                     )
                     return
-                service_data[color_mode_attr.parameter] = state.attributes[
-                    color_mode_attr.state_attr
-                ]
+                service_data[cm_attr.parameter] = cm_attr_state
         else:
             # Fall back to Choosing the first color that is specified
             for color_attr in COLOR_GROUP:
-                if color_attr in state.attributes:
-                    service_data[color_attr] = state.attributes[color_attr]
+                if (color_attr_state := state.attributes.get(color_attr)) is not None:
+                    service_data[color_attr] = color_attr_state
                     break
 
     elif state.state == STATE_OFF:

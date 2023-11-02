@@ -1,8 +1,7 @@
 """Support for ASUSWRT routers."""
 from __future__ import annotations
 
-from homeassistant.components.device_tracker import SOURCE_TYPE_ROUTER
-from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity, SourceType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -10,6 +9,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DATA_ASUSWRT, DOMAIN
 from .router import AsusWrtDevInfo, AsusWrtRouter
+
+ATTR_LAST_TIME_REACHABLE = "last_time_reachable"
 
 DEFAULT_DEVICE_NAME = "Unknown device"
 
@@ -47,12 +48,13 @@ def add_entities(
         new_tracked.append(AsusWrtDevice(router, device))
         tracked.add(mac)
 
-    if new_tracked:
-        async_add_entities(new_tracked)
+    async_add_entities(new_tracked)
 
 
 class AsusWrtDevice(ScannerEntity):
     """Representation of a AsusWrt device."""
+
+    _unrecorded_attributes = frozenset({ATTR_LAST_TIME_REACHABLE})
 
     _attr_should_poll = False
 
@@ -60,7 +62,6 @@ class AsusWrtDevice(ScannerEntity):
         """Initialize a AsusWrt device."""
         self._router = router
         self._device = device
-        self._attr_unique_id = device.mac
         self._attr_name = device.name or DEFAULT_DEVICE_NAME
 
     @property
@@ -69,9 +70,9 @@ class AsusWrtDevice(ScannerEntity):
         return self._device.is_connected
 
     @property
-    def source_type(self) -> str:
+    def source_type(self) -> SourceType:
         """Return the source type."""
-        return SOURCE_TYPE_ROUTER
+        return SourceType.ROUTER
 
     @property
     def hostname(self) -> str | None:
@@ -100,7 +101,7 @@ class AsusWrtDevice(ScannerEntity):
         self._attr_extra_state_attributes = {}
         if self._device.last_activity:
             self._attr_extra_state_attributes[
-                "last_time_reachable"
+                ATTR_LAST_TIME_REACHABLE
             ] = self._device.last_activity.isoformat(timespec="seconds")
         self.async_write_ha_state()
 

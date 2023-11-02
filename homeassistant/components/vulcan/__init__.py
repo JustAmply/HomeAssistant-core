@@ -1,20 +1,32 @@
 """The Vulcan component."""
+import sys
 
 from aiohttp import ClientConnectorError
-from vulcan import Account, Keystore, UnauthorizedCertificateException, Vulcan
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 
-PLATFORMS = ["calendar"]
+if sys.version_info < (3, 12):
+    from vulcan import Account, Keystore, UnauthorizedCertificateException, Vulcan
+
+PLATFORMS = [Platform.CALENDAR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Uonet+ Vulcan integration."""
+    if sys.version_info >= (3, 12):
+        raise HomeAssistantError(
+            "Uonet+ Vulcan is not supported on Python 3.12. Please use Python 3.11."
+        )
     hass.data.setdefault(DOMAIN, {})
     try:
         keystore = Keystore.load(entry.data["keystore"])
@@ -34,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ) from err
     hass.data[DOMAIN][entry.entry_id] = client
 
-    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 

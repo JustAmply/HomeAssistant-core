@@ -1,6 +1,7 @@
 """Config flow for the Deluge integration."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 import socket
 from ssl import SSLError
 from typing import Any
@@ -75,7 +76,7 @@ class DelugeFlowHandler(ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-    async def async_step_reauth(self, config: dict[str, Any]) -> FlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
         """Handle a reauthorization flow request."""
         return await self.async_step_user()
 
@@ -86,7 +87,7 @@ class DelugeFlowHandler(ConfigFlow, domain=DOMAIN):
         username = user_input[CONF_USERNAME]
         password = user_input[CONF_PASSWORD]
         api = DelugeRPCClient(
-            host=host, port=port, username=username, password=password
+            host=host, port=port, username=username, password=password, decode_utf8=True
         )
         try:
             await self.hass.async_add_executor_job(api.connect)
@@ -98,6 +99,6 @@ class DelugeFlowHandler(ConfigFlow, domain=DOMAIN):
             return "cannot_connect"
         except Exception as ex:  # pylint:disable=broad-except
             if type(ex).__name__ == "BadLoginError":
-                return "invalid_auth"  # pragma: no cover
+                return "invalid_auth"
             return "unknown"
         return None

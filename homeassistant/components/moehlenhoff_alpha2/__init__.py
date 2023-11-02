@@ -17,7 +17,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.CLIMATE, Platform.SENSOR, Platform.BINARY_SENSOR]
 
 UPDATE_INTERVAL = timedelta(seconds=60)
 
@@ -32,7 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
@@ -83,8 +83,7 @@ class Alpha2BaseCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     async def async_set_cooling(self, enabled: bool) -> None:
         """Enable or disable cooling mode."""
         await self.base.set_cooling(enabled)
-        for update_callback in self._listeners:
-            update_callback()
+        self.async_update_listeners()
 
     async def async_set_target_temperature(
         self, heat_area_id: str, target_temperature: float
@@ -117,8 +116,7 @@ class Alpha2BaseCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 "Failed to set target temperature, communication error with alpha2 base"
             ) from http_err
         self.data["heat_areas"][heat_area_id].update(update_data)
-        for update_callback in self._listeners:
-            update_callback()
+        self.async_update_listeners()
 
     async def async_set_heat_area_mode(
         self, heat_area_id: str, heat_area_mode: int
@@ -126,7 +124,7 @@ class Alpha2BaseCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         """Set the mode of the given heat area."""
         # HEATAREA_MODE: 0=Auto, 1=Tag, 2=Nacht
         if heat_area_mode not in (0, 1, 2):
-            ValueError(f"Invalid heat area mode: {heat_area_mode}")
+            raise ValueError(f"Invalid heat area mode: {heat_area_mode}")
         _LOGGER.debug(
             "Setting mode of heat area %s to %d",
             heat_area_id,
@@ -161,5 +159,5 @@ class Alpha2BaseCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 self.data["heat_areas"][heat_area_id]["T_TARGET"] = self.data[
                     "heat_areas"
                 ][heat_area_id]["T_HEAT_NIGHT"]
-        for update_callback in self._listeners:
-            update_callback()
+
+        self.async_update_listeners()

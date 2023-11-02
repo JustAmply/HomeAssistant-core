@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from sharkiq import OperatingModes, PowerModes, Properties, SharkIqVacuum
 
@@ -16,7 +17,7 @@ from homeassistant.components.vacuum import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -67,6 +68,8 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
     """Shark IQ vacuum entity."""
 
     _attr_fan_speed_list = list(FAN_SPEEDS_MAP)
+    _attr_has_entity_name = True
+    _attr_name = None
     _attr_supported_features = (
         VacuumEntityFeature.BATTERY
         | VacuumEntityFeature.FAN_SPEED
@@ -74,7 +77,6 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         | VacuumEntityFeature.RETURN_HOME
         | VacuumEntityFeature.START
         | VacuumEntityFeature.STATE
-        | VacuumEntityFeature.STATUS
         | VacuumEntityFeature.STOP
         | VacuumEntityFeature.LOCATE
     )
@@ -85,22 +87,32 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         """Create a new SharkVacuumEntity."""
         super().__init__(coordinator)
         self.sharkiq = sharkiq
-        self._attr_name = sharkiq.name
         self._attr_unique_id = sharkiq.serial_number
-        self._serial_number = sharkiq.serial_number
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, sharkiq.serial_number)},
+            manufacturer=SHARK,
+            model=self.model,
+            name=sharkiq.name,
+            sw_version=sharkiq.get_property_value(Properties.ROBOT_FIRMWARE_VERSION),
+        )
 
-    def clean_spot(self, **kwargs):
+    def clean_spot(self, **kwargs: Any) -> None:
         """Clean a spot. Not yet implemented."""
         raise NotImplementedError()
 
-    def send_command(self, command, params=None, **kwargs):
+    def send_command(
+        self,
+        command: str,
+        params: dict[str, Any] | list[Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Send a command to the vacuum. Not yet implemented."""
         raise NotImplementedError()
 
     @property
     def is_online(self) -> bool:
         """Tell us if the device is online."""
-        return self.coordinator.device_is_online(self._serial_number)
+        return self.coordinator.device_is_online(self.sharkiq.serial_number)
 
     @property
     def model(self) -> str:
@@ -108,19 +120,6 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         if self.sharkiq.vac_model_number:
             return self.sharkiq.vac_model_number
         return self.sharkiq.oem_model_number
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Device info dictionary."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._serial_number)},
-            manufacturer=SHARK,
-            model=self.model,
-            name=self.name,
-            sw_version=self.sharkiq.get_property_value(
-                Properties.ROBOT_FIRMWARE_VERSION
-            ),
-        )
 
     @property
     def error_code(self) -> int | None:
@@ -146,9 +145,8 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         return self.sharkiq.get_property_value(Properties.RECHARGING_TO_RESUME)
 
     @property
-    def state(self):
-        """
-        Get the current vacuum state.
+    def state(self) -> str | None:
+        """Get the current vacuum state.
 
         NB: Currently, we do not return an error state because they can be very, very stale.
         In the app, these are (usually) handled by showing the robot as stopped and sending the
@@ -169,27 +167,27 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         """Get the current battery level."""
         return self.sharkiq.get_property_value(Properties.BATTERY_CAPACITY)
 
-    async def async_return_to_base(self, **kwargs):
+    async def async_return_to_base(self, **kwargs: Any) -> None:
         """Have the device return to base."""
         await self.sharkiq.async_set_operating_mode(OperatingModes.RETURN)
         await self.coordinator.async_refresh()
 
-    async def async_pause(self):
+    async def async_pause(self) -> None:
         """Pause the cleaning task."""
         await self.sharkiq.async_set_operating_mode(OperatingModes.PAUSE)
         await self.coordinator.async_refresh()
 
-    async def async_start(self):
+    async def async_start(self) -> None:
         """Start the device."""
         await self.sharkiq.async_set_operating_mode(OperatingModes.START)
         await self.coordinator.async_refresh()
 
-    async def async_stop(self, **kwargs):
+    async def async_stop(self, **kwargs: Any) -> None:
         """Stop the device."""
         await self.sharkiq.async_set_operating_mode(OperatingModes.STOP)
         await self.coordinator.async_refresh()
 
-    async def async_locate(self, **kwargs):
+    async def async_locate(self, **kwargs: Any) -> None:
         """Cause the device to generate a loud chirp."""
         await self.sharkiq.async_find_device()
 
@@ -203,7 +201,7 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
                 fan_speed = k
         return fan_speed
 
-    async def async_set_fan_speed(self, fan_speed: str, **kwargs):
+    async def async_set_fan_speed(self, fan_speed: str, **kwargs: Any) -> None:
         """Set the fan speed."""
         await self.sharkiq.async_set_property_value(
             Properties.POWER_MODE, FAN_SPEEDS_MAP.get(fan_speed.capitalize())
@@ -227,7 +225,7 @@ class SharkVacuumEntity(CoordinatorEntity[SharkIqUpdateCoordinator], StateVacuum
         return self.sharkiq.get_property_value(Properties.LOW_LIGHT_MISSION)
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return a dictionary of device state attributes specific to sharkiq."""
         data = {
             ATTR_ERROR_CODE: self.error_code,
